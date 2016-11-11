@@ -61,8 +61,6 @@ void setup(void)
   Serial.begin(115200);
   Serial.println(F("Initializing the Bluefruit LE module: "));
 
-  ble.available();
-
   if (!ble.begin(VERBOSE_MODE)) {
     error(F("Couldn't begin verbose mode"));
   }
@@ -221,33 +219,28 @@ void loop(void) {
   if (len == 0) {
     return;
   }
+  
+  printHex(packetbuffer, len);
 
   for (uint8_t i = 1; i < len; i++) {
-//    Serial.print("len == ");
-//    Serial.print(len);
-//    Serial.print(". packetbuffer[");
-//    Serial.print(i);
-//    Serial.print("] = ");
-//    Serial.println(packetbuffer[i]);
     command += packetbuffer[i];
   }
-  Serial.print("[Recvd] .");
-  Serial.print(command);
-  Serial.println(".");
-  if(command.compareTo("left")){
-    Serial.println("command.equals(left)");
+  command.trim();
+  Serial.print("[Recvd] ");
+  Serial.println(command);
+  ble.println("Hello from Arduino");
+
+  if(command.equalsIgnoreCase("left")){
 //    digitalWrite(LEFT, HIGH);
     digitalWrite(13, HIGH);
-    delay(1000);
-  }else if(command.compareTo("right")){
-    Serial.println("command.equals(right)");
+//    delay(1000);
+  }else if(command.equalsIgnoreCase("right")){
 //    digitalWrite(RIGHT, HIGH);
     digitalWrite(13, LOW);
-    delay(1000);
+//    delay(1000);
   }else{
-    Serial.println("!command.equals()");
-//    digitalWrite(LEFT, LOW);
-//    digitalWrite(RIGHT, LOW);
+    Serial.println("command != 'left' && command != 'right'");
+    return;
   }
 }
 
@@ -262,20 +255,15 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
 
     while (ble->available()) {
       char c =  ble->read();
-      Serial.print("all c:");
-      Serial.println(c);
+//      Serial.print("all c:");
+//      Serial.println(c);
       if (c != "1") {
-        Serial.print("c != 1: ");
-        Serial.println(c);
+//        Serial.print("c != 1: ");
+//        Serial.println(c);
         packetbuffer[replyidx] = c;
         replyidx++;
       }
       timeout = origtimeout;
-//      Serial.print("timeout = ");
-//      Serial.println(timeout);
-      if (c == "-")
-        Serial.println("breaking...");
-      break;
     }
 
     if (timeout == 0) break;
@@ -287,15 +275,9 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
   if (!replyidx)  // no data or timeout
     return 0;
   if (packetbuffer[0] != '1') { // doesn't start with '1' packet beginning
-//    Serial.print("packetbuffer[0] from readPacket = ");
-//    Serial.println(packetbuffer[0]);
-//    Serial.println("returning len...");
     return 0;
   }
 
-  // checksum passed!
-//  Serial.print("Checksum passed. replyidx = ");
-//  Serial.println(replyidx);
   return replyidx;
 }
 
