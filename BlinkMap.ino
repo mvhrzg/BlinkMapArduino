@@ -93,10 +93,10 @@ void setup(void)
   //Setup lights
   pinMode(LEFT, OUTPUT);
   analogWrite(LEFT, OFF);
-  
+
   pinMode(RIGHT, OUTPUT);
   digitalWrite(RIGHT, LOW);
-  
+
 }
 
 void loop(void) {
@@ -105,13 +105,13 @@ void loop(void) {
   String data;
   char command;
   bool breakWhile = false;
-  leftOn = false; 
+  leftOn = false;
   rightOn = false;
-  
+
   if (len == 0) {
     return;
   }
-  
+
   printHex(packetbuffer, len);
 
   for (uint8_t i = 1; i < len; i++) {
@@ -121,58 +121,75 @@ void loop(void) {
   command = data[0];
   Serial.print("[Recvd] ");
   Serial.println(command);
-  ble.println("Hello from Arduino");
+  //  ble.println("Hello from Arduino");
 
-  if(command == turnOff){
+  if (command == turnOff) {
     breakWhile = true;
   }
 
   //While blinkMap wants lights on
-  while(!breakWhile){
-    doSwitch(command);  
-  }
+    while(!breakWhile){
+      doSwitch(command);
+    }
 
   //Broke out of while because we got told to turn one or both lights off
   //If the left light is on, turn it off
-  if (leftOn){
+  if (leftOn) {
     analogWrite(LEFT, OFF);
     leftOn = false;
   }
 
   //Separate if to handle uturns
-  if(rightOn){
+  if (rightOn) {
     digitalWrite(RIGHT, LOW);
     rightOn = false;
   }
-  
-  
+
+
 }
 
-void doSwitch(char turn){
-  switch(turn){
+void doSwitch(char turn) {
+  switch (turn) {
     case 'l':   //left
-      analogWrite(LEFT, ON);
-      leftOn = true;
-      digitalWrite(RIGHT, LOW);
-      rightOn = false;
-      
+      doLeft();
       break;
     case 'r':   //right
-      digitalWrite(RIGHT, HIGH);
-      rightOn = true;
-      analogWrite(LEFT, OFF);
-      leftOn = false;
-      
+      doRight();
       break;
     case 'u':   //uturn
-      //Turn them both on
-      analogWrite(LEFT, ON);
-      leftOn = true;
-      digitalWrite(RIGHT, HIGH);
-      rightOn = true;
+      doUturn();
 
       break;
   }
+}
+
+void doLeft() {
+  digitalWrite(RIGHT, LOW);
+  rightOn = false;
+  leftOn = true;
+
+  analogWrite(LEFT, ON);
+  delay(500);
+  analogWrite(LEFT, OFF);
+  delay(500);
+}
+
+boolean doRight() {
+  analogWrite(LEFT, OFF);
+  leftOn = false;
+  rightOn = true;
+
+  digitalWrite(RIGHT, HIGH);
+  delay(500);
+  digitalWrite(RIGHT, LOW);
+  delay(500);
+}
+void doUturn() {
+  //Turn them both on
+  analogWrite(LEFT, ON);
+  leftOn = true;
+  digitalWrite(RIGHT, HIGH);
+  rightOn = true;
 }
 
 char readPacket(Adafruit_BLE *ble, uint16_t timeout)
