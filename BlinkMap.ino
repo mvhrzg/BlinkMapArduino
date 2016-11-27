@@ -22,12 +22,12 @@
 Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_RST);
 
 //Globals
-char connection = "@";
-char stayOn = "$";
-char turnOff = "#";
-char turnLeft = 'l';
-char turnRight = 'r';
-char uturn = 'u';
+char disconnection = '@';
+char stayOn = '$';
+char readNext = '#';
+char turnLeft = 'L';
+char turnRight = 'R';
+char uturn = 'U';
 uint8_t OFF = 0;
 uint8_t ON  = 255;
 bool leftOn;
@@ -35,7 +35,7 @@ bool rightOn;
 
 void error(const __FlashStringHelper*err) {
   Serial.println(err);
-  //  while (1);
+  while (1);
 }
 
 char packetbuffer[READ_BUFSIZE + 1];
@@ -55,14 +55,14 @@ void setup(void)
   }
   Serial.println("OK!");
 
-  if ( FACTORYRESET_ENABLE )
-  {
-    /* Perform a factory reset to make sure everything is in a known state */
-    Serial.println(F("Performing a factory reset: "));
-    if ( ! ble.factoryReset() ) {
-      error(F("Couldn't factory reset"));
-    }
-  }
+//  if ( FACTORYRESET_ENABLE )
+//  {
+//    /* Perform a factory reset to make sure everything is in a known state */
+//    Serial.println(F("Performing a factory reset: "));
+//    if ( ! ble.factoryReset() ) {
+//      error(F("Couldn't factory reset"));
+//    }
+//  }
 
   ble.echo(true);
 
@@ -87,9 +87,6 @@ void setup(void)
   Serial.println( F("Switching to DATA mode!") );
   ble.setMode(BLUEFRUIT_MODE_DATA);
 
-  //Send this line to Android so we know the moment we're connected
-  ble.println(connection);  //if this doesn't work, try ble.write (although it prob won't work bc ble can only write when available
-
   //Setup lights
   pinMode(LEFT, OUTPUT);
   analogWrite(LEFT, OFF);
@@ -102,94 +99,58 @@ void setup(void)
 void loop(void) {
   /* Wait for new data to arrive */
   uint8_t len = readPacket(&ble, BLE_READPACKET_TIMEOUT);
-  String data;
+  String received;
   char command;
-  bool breakWhile = false;
+  bool keepLooping;
   leftOn = false;
   rightOn = false;
 
+
   if (len == 0) {
+    //    Serial.println("len = 0");
     return;
   }
-
+  Serial.print("Printing HEX: ");
   printHex(packetbuffer, len);
 
   for (uint8_t i = 1; i < len; i++) {
-    data += packetbuffer[i];
+    writeLine("loop() packetbuffer[i]", packetbuffer[i]);
+    received += packetbuffer[i];
   }
-  data.trim();
-  command = data[0];
+  command = received[0];
   Serial.print("[Recvd] ");
+  Serial.println(received);
+  Serial.print("[Command] ");
   Serial.println(command);
-  //  ble.println("Hello from Arduino");
 
-  if (command == turnOff) {
-    breakWhile = true;
+  if (command == readNext || command == disconnection) {
+    keepLooping = false;
+  } else {
+    keepLooping = true;
   }
 
-  //While blinkMap wants lights on
-    while(!breakWhile){
-      doSwitch(command);
-    }
+  writeLine("keeplooping", keepLooping);
+  Serial.print("calling doSwitch('");
+  Serial.print(command);
+  Serial.print("', '");
+  Serial.print(keepLooping);
+  Serial.println("')");
 
-  //Broke out of while because we got told to turn one or both lights off
-  //If the left light is on, turn it off
-  if (leftOn) {
-    analogWrite(LEFT, OFF);
-    leftOn = false;
+  doSwitch(&ble, command, keepLooping);
+  if(command == readNext){
+    Serial.println("******NEW MOVE******");
+    return;
+  }
+  Serial.println("AFTER DO_SWITCH");
+  
+  if(command == disconnection){
+    Serial.println("Disconnecting...");
+    ble.factoryReset();
+    ble.disconnect();
+    Serial.print("ble connected? ");
+    Serial.println(ble.isConnected());
   }
 
-  //Separate if to handle uturns
-  if (rightOn) {
-    digitalWrite(RIGHT, LOW);
-    rightOn = false;
-  }
-
-
-}
-
-void doSwitch(char turn) {
-  switch (turn) {
-    case 'l':   //left
-      doLeft();
-      break;
-    case 'r':   //right
-      doRight();
-      break;
-    case 'u':   //uturn
-      doUturn();
-
-      break;
-  }
-}
-
-void doLeft() {
-  digitalWrite(RIGHT, LOW);
-  rightOn = false;
-  leftOn = true;
-
-  analogWrite(LEFT, ON);
-  delay(500);
-  analogWrite(LEFT, OFF);
-  delay(500);
-}
-
-boolean doRight() {
-  analogWrite(LEFT, OFF);
-  leftOn = false;
-  rightOn = true;
-
-  digitalWrite(RIGHT, HIGH);
-  delay(500);
-  digitalWrite(RIGHT, LOW);
-  delay(500);
-}
-void doUturn() {
-  //Turn them both on
-  analogWrite(LEFT, ON);
-  leftOn = true;
-  digitalWrite(RIGHT, HIGH);
-  rightOn = true;
 }
 
 char readPacket(Adafruit_BLE *ble, uint16_t timeout)
@@ -202,11 +163,18 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
     if (replyidx >= 20) break;
 
     while (ble->available()) {
+      Serial.println("Reading buffer...");
       char c =  ble->read();
-      if (c != "1") {
-        packetbuffer[replyidx] = c;
-        replyidx++;
+      if (c == '1') { //if it's the end of the packet, stop
+        replyidx = 0;
       }
+      Serial.print("CHAR c = '");
+      Serial.print(c);
+      Serial.print("'. HEX c = '");
+      Serial.print(c, HEX);
+      Serial.println("'.");
+      packetbuffer[replyidx] = c;
+      replyidx++;
       timeout = origtimeout;
     }
 
@@ -214,15 +182,130 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
     delay(1);
   }
 
+  //  writeLine("after while. packetbuffer[0]", packetbuffer[0]);
+  //  Serial.print("setting packetbuffer["); Serial.print(replyidx); writeLine("]", 0);
   packetbuffer[replyidx] = 0;  // null term
 
-  if (!replyidx)  // no data or timeout
+  if (!replyidx) { // no data or timeout
+    //    Serial.println("if (!replyidx). returning 0...");
     return 0;
+  }
   if (packetbuffer[0] != '1') { // doesn't start with '1' packet beginning
+    Serial.println("received a packet, but doesn't start with 1. Returning 0...");
     return 0;
   }
 
+  Serial.print("returning replyidx = ");
+  Serial.println(replyidx);
   return replyidx;
+}
+
+
+void blinkMapDisconnected(Adafruit_BLE * ble) {
+  if (!ble->isConnected()) {
+    writeLine("ble", "disconnected");
+  }
+}
+
+void doSwitch(Adafruit_BLE *ble, char turn, boolean looping) {
+    writeLine("doSwitch(). turn", turn);
+    writeLine("doSwitch(). looping", looping);
+  switch (turn) {
+    case 'L':   //left
+      Serial.println("in doSwitch(L)");
+      doLeft(ble, looping);
+      Serial.println("doLeft(): breaking...");
+      break;
+    case 'R':   //right
+      Serial.println("in doSwitch(R)");
+      doRight(ble, looping);
+      Serial.println("doRight(): breaking...");
+      break;
+    case 'U':   //uturn
+      Serial.println("in doSwitch(U)");
+      doUturn(ble, looping);
+      Serial.println("doUturn(): breaking...");
+      break;
+  }
+  delay(1);
+}
+
+void doLeft(Adafruit_BLE *ble, bool looping) {
+  Serial.println("doLeft() = RIGHT, LOW");
+  digitalWrite(RIGHT, LOW);
+  rightOn = false;
+  leftOn = true;
+
+  while (!ble-> available() && looping == true) {
+    Serial.println("doLeft() = LEFT, ON");
+    analogWrite(LEFT, ON);
+    delay(500);
+    Serial.println("doLeft() = LEFT, OFF");
+    analogWrite(LEFT, OFF);
+    delay(500);
+  }
+}
+
+void doRight(Adafruit_BLE *ble, boolean looping) {
+  Serial.println("doRight() = LEFT, OFF");
+  analogWrite(LEFT, OFF);
+  leftOn = false;
+  rightOn = true;
+
+  while (!ble-> available() && looping == true) {
+    Serial.println("doRight() = RIGHT, HIGH");
+    digitalWrite(RIGHT, HIGH);
+    delay(500);
+    Serial.println("doRight() = RIGHT, LOW");
+    digitalWrite(RIGHT, LOW);
+    delay(500);
+  }
+}
+void doUturn(Adafruit_BLE *ble, boolean looping) {
+  while (!ble-> available() && looping == true) {
+    Serial.println("doUturn() = LEFT, ON");
+    //Turn them both on
+    analogWrite(LEFT, ON);
+    leftOn = true;
+    Serial.println("doUturn() = RIGHT, HIGH");
+    digitalWrite(RIGHT, HIGH);
+    rightOn = true;
+  }
+}
+
+void writeLine(char *prompt, char text) {
+  Serial.print(prompt);
+  Serial.print(" = '");
+  Serial.print(text);
+  Serial.println("'");
+}
+
+void writeLine(char *prompt, String text) {
+  Serial.print(prompt);
+  Serial.print(" = '");
+  Serial.print(text);
+  Serial.println("'");
+}
+
+void writeLine(char *prompt, uint16_t text) {
+  Serial.print(prompt);
+  Serial.print(" = '");
+  Serial.print(text);
+  Serial.println("'");
+}
+
+void writeLine(char *prompt, int text) {
+  Serial.print(prompt);
+  Serial.print(" = '");
+  Serial.print(text);
+  Serial.println("'");
+}
+
+void writeLine(char *prompt, bool text) {
+  Serial.print(prompt);
+  Serial.print(" = '");
+  Serial.print(text);
+  Serial.println("'");
 }
 
 void printHex(const uint8_t * data, const uint32_t numBytes)
