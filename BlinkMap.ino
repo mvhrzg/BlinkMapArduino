@@ -110,11 +110,11 @@ void loop(void) {
     //    Serial.println("len = 0");
     return;
   }
-  Serial.print("Printing HEX: ");
+  Serial.print("HEX: ");
   printHex(packetbuffer, len);
 
   for (uint8_t i = 1; i < len; i++) {
-    writeLine("loop() packetbuffer[i]", packetbuffer[i]);
+//    writeLine("loop() packetbuffer[i]", packetbuffer[i]);
     received += packetbuffer[i];
   }
   command = received[0];
@@ -145,10 +145,12 @@ void loop(void) {
   
   if(command == disconnection){
     Serial.println("Disconnecting...");
-    ble.factoryReset();
     ble.disconnect();
     Serial.print("ble connected? ");
     Serial.println(ble.isConnected());
+    if ( ! ble.factoryReset() ) {
+      Serial.println(F("Couldn't factory reset"));
+    }
   }
 
 }
@@ -163,16 +165,16 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
     if (replyidx >= 20) break;
 
     while (ble->available()) {
-      Serial.println("Reading buffer...");
+//      Serial.println("Reading buffer...");
       char c =  ble->read();
       if (c == '1') { //if it's the end of the packet, stop
         replyidx = 0;
       }
-      Serial.print("CHAR c = '");
-      Serial.print(c);
-      Serial.print("'. HEX c = '");
-      Serial.print(c, HEX);
-      Serial.println("'.");
+//      Serial.print("CHAR c = '");
+//      Serial.print(c);
+//      Serial.print("'. HEX c = '");
+//      Serial.print(c, HEX);
+//      Serial.println("'.");
       packetbuffer[replyidx] = c;
       replyidx++;
       timeout = origtimeout;
