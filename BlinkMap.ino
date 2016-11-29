@@ -146,11 +146,6 @@ void loop(void) {
   if(command == disconnection){
     Serial.println("Disconnecting...");
     ble.disconnect();
-    Serial.print("ble connected? ");
-    Serial.println(ble.isConnected());
-    if ( ! ble.factoryReset() ) {
-      Serial.println(F("Couldn't factory reset"));
-    }
   }
 
 }
