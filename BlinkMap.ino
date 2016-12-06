@@ -13,7 +13,7 @@
 
 #define READ_BUFSIZE    (20)
 #define LEFT            9   //analog  BLUE
-#define RIGHT           11  //digital PINK
+#define RIGHT           11  //digital GREEN
 
 #define FACTORYRESET_ENABLE         1
 #define MINIMUM_FIRMWARE_VERSION    "0.6.6"
@@ -23,15 +23,12 @@ Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_
 
 //Globals
 char disconnection = '@';
-char stayOn = '$';
 char readNext = '#';
 char turnLeft = 'L';
 char turnRight = 'R';
 char uturn = 'U';
 uint8_t OFF = 0;
 uint8_t ON  = 255;
-bool leftOn;
-bool rightOn;
 
 void error(const __FlashStringHelper*err) {
   Serial.println(err);
@@ -54,15 +51,6 @@ void setup(void)
     error(F("Couldn't begin verbose mode"));
   }
   Serial.println("OK!");
-
-//  if ( FACTORYRESET_ENABLE )
-//  {
-//    /* Perform a factory reset to make sure everything is in a known state */
-//    Serial.println(F("Performing a factory reset: "));
-//    if ( ! ble.factoryReset() ) {
-//      error(F("Couldn't factory reset"));
-//    }
-//  }
 
   ble.echo(true);
 
@@ -89,10 +77,10 @@ void setup(void)
 
   //Setup lights
   pinMode(LEFT, OUTPUT);
-  analogWrite(LEFT, OFF);
+  analogWrite(LEFT, ON);
 
   pinMode(RIGHT, OUTPUT);
-  digitalWrite(RIGHT, LOW);
+  digitalWrite(RIGHT, HIGH);
 
 }
 
@@ -102,19 +90,14 @@ void loop(void) {
   String received;
   char command;
   bool keepLooping;
-  leftOn = false;
-  rightOn = false;
-
 
   if (len == 0) {
-    //    Serial.println("len = 0");
     return;
   }
   Serial.print("HEX: ");
   printHex(packetbuffer, len);
 
   for (uint8_t i = 1; i < len; i++) {
-//    writeLine("loop() packetbuffer[i]", packetbuffer[i]);
     received += packetbuffer[i];
   }
   command = received[0];
@@ -138,12 +121,12 @@ void loop(void) {
 
   doSwitch(&ble, command, keepLooping);
   if(command == readNext){
-    Serial.println("******NEW MOVE******");
+    Serial.print("******MOVE ENDED******");
     return;
   }
-  Serial.println("AFTER DO_SWITCH");
-  
   if(command == disconnection){
+    analogWrite(LEFT, ON);
+    digitalWrite(RIGHT, HIGH);
     Serial.println("Disconnecting...");
     ble.disconnect();
   }
@@ -160,16 +143,10 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
     if (replyidx >= 20) break;
 
     while (ble->available()) {
-//      Serial.println("Reading buffer...");
       char c =  ble->read();
       if (c == '1') { //if it's the end of the packet, stop
         replyidx = 0;
       }
-//      Serial.print("CHAR c = '");
-//      Serial.print(c);
-//      Serial.print("'. HEX c = '");
-//      Serial.print(c, HEX);
-//      Serial.println("'.");
       packetbuffer[replyidx] = c;
       replyidx++;
       timeout = origtimeout;
@@ -179,21 +156,15 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
     delay(1);
   }
 
-  //  writeLine("after while. packetbuffer[0]", packetbuffer[0]);
-  //  Serial.print("setting packetbuffer["); Serial.print(replyidx); writeLine("]", 0);
   packetbuffer[replyidx] = 0;  // null term
 
   if (!replyidx) { // no data or timeout
-    //    Serial.println("if (!replyidx). returning 0...");
     return 0;
   }
   if (packetbuffer[0] != '1') { // doesn't start with '1' packet beginning
-    Serial.println("received a packet, but doesn't start with 1. Returning 0...");
     return 0;
   }
 
-  Serial.print("returning replyidx = ");
-  Serial.println(replyidx);
   return replyidx;
 }
 
@@ -228,45 +199,33 @@ void doSwitch(Adafruit_BLE *ble, char turn, boolean looping) {
 }
 
 void doLeft(Adafruit_BLE *ble, bool looping) {
-  Serial.println("doLeft() = RIGHT, LOW");
-  digitalWrite(RIGHT, LOW);
-  rightOn = false;
-  leftOn = true;
+  digitalWrite(RIGHT, HIGH);
 
   while (!ble-> available() && looping == true) {
-    Serial.println("doLeft() = LEFT, ON");
-    analogWrite(LEFT, ON);
-    delay(500);
-    Serial.println("doLeft() = LEFT, OFF");
+//    Serial.println("doLeft() = LEFT, ON");
     analogWrite(LEFT, OFF);
+    delay(500);
+//    Serial.println("doLeft() = LEFT, OFF");
+    analogWrite(LEFT, ON);
     delay(500);
   }
 }
 
 void doRight(Adafruit_BLE *ble, boolean looping) {
-  Serial.println("doRight() = LEFT, OFF");
-  analogWrite(LEFT, OFF);
-  leftOn = false;
-  rightOn = true;
+  analogWrite(LEFT, ON);
 
   while (!ble-> available() && looping == true) {
-    Serial.println("doRight() = RIGHT, HIGH");
-    digitalWrite(RIGHT, HIGH);
-    delay(500);
-    Serial.println("doRight() = RIGHT, LOW");
     digitalWrite(RIGHT, LOW);
+    delay(500);
+    digitalWrite(RIGHT, HIGH);
     delay(500);
   }
 }
 void doUturn(Adafruit_BLE *ble, boolean looping) {
   while (!ble-> available() && looping == true) {
-    Serial.println("doUturn() = LEFT, ON");
     //Turn them both on
-    analogWrite(LEFT, ON);
-    leftOn = true;
-    Serial.println("doUturn() = RIGHT, HIGH");
-    digitalWrite(RIGHT, HIGH);
-    rightOn = true;
+    analogWrite(LEFT, OFF);
+    digitalWrite(RIGHT, LOW);
   }
 }
 
