@@ -140,19 +140,19 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
   memset(packetbuffer, 0, READ_BUFSIZE);
 
   while (timeout--) {
-    if (replyidx >= 20) break;
+    if (replyidx >= 20) break;  //packet limit: 20 chars
 
-    while (ble->available()) {
-      char c =  ble->read();
-      if (c == '1') { //if it's the end of the packet, stop
+    while (ble->available()) {  //while we have a connection
+      char c =  ble->read();    //read character from android application
+      if (c == '1') {           //blinkmap packets start with '1' and end with '!'
         replyidx = 0;
       }
-      packetbuffer[replyidx] = c;
-      replyidx++;
-      timeout = origtimeout;
+      packetbuffer[replyidx] = c; //add char received to buffer
+      replyidx++;                 //setup next char bucket
+      timeout = origtimeout;      //reset timeout back to upper limit (500 ms) to see if any more characters are received
     }
 
-    if (timeout == 0) break;
+    if (timeout == 0) break;      //if we're at timeout, break out and wait 1 second
     delay(1);
   }
 
@@ -161,11 +161,11 @@ char readPacket(Adafruit_BLE *ble, uint16_t timeout)
   if (!replyidx) { // no data or timeout
     return 0;
   }
-  if (packetbuffer[0] != '1') { // doesn't start with '1' packet beginning
+  if (packetbuffer[0] != '1') { // if it doesn't start with '1', it is not a blinkmap packet
     return 0;
   }
 
-  return replyidx;
+  return replyidx;  //return number of characters received
 }
 
 
